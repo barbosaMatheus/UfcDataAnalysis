@@ -27,6 +27,7 @@ def height_to_inches(in_df, cname="Height"):
     df[cname] = (df["ft"] * 12.0) + df["in"]
     return df[cname]
 
+# removes the last n characters from every entry in a particular column
 def remove_last(df, cname, n=1):
     rem = -1 * n
     return df[cname].str[:rem]
@@ -96,11 +97,13 @@ def get_fids_and_ages(bouts, fighters):
     return bouts.rename(columns={"R_fighter": "red_fid", "B_fighter": "blue_fid"})
 
 def calculate_records(df, bouts, cname="fighter_name"):
-    df["wins"] = df.apply(lambda x: bouts[bouts["Winner"] == x[cname]].shape[0])
-    df["losses"] = df.apply(lambda x: bouts[bouts["Winner"] == x[cname]].shape[0])
+    df["wins"] = df.apply(lambda x: bouts[bouts["Winner"] == x[cname]].shape[0], axis=1)
+    df["losses"] = df.apply(lambda x: bouts[bouts["Winner"] == x[cname]].shape[0], axis=1)
     df["draw/nc"] = df.apply(lambda x: bouts[((bouts["R_fighter"] == x[cname]) |
                                              (bouts["B_fighter"] == x[cname])) &
-                                             (bouts["Winner"] != x[cname])].shape[0])
+                                             (bouts["Winner"] != x[cname])].shape[0], axis=1)
+    df["bouts"] = df.apply(lambda x: bouts[(bouts["R_fighter"] == x[cname]) |
+                                           (bouts["B_fighter"] == x[cname])].shape[0], axis=1)
     return df
 
 if __name__ == "__main__":
@@ -126,7 +129,7 @@ if __name__ == "__main__":
         fighters = decode_date(fighters, prefix="birth_")
         fighters.insert(0, "fighter_id", range(fighters.shape[0]))
         # print(fighters)
-        fighters.to_csv(fighters_fname)
+        fighters.to_csv(fighters_fname, index=False)
     else:
         fighters = pd.read_csv(fighters_fname)
     if not isfile(bouts_fname):
@@ -136,7 +139,11 @@ if __name__ == "__main__":
                      "location", "Fight_type", "Winner", "win_by", "last_round"]
 
         bouts = bouts[keep_cols]
-        # fighters = calculate_records(fighters, bouts)
+        if not set(["wins", "losses", "draw/nc", "bouts"]).issubset(set(fighters.columns)):
+            fighters = calculate_records(fighters, bouts)
+            # remove fighters with 0 bouts
+            fighters = fighters[fighters["bouts"] > 0]
+            # fighters.to_csv(fighters_fname, axis=False)
         print(fighters)
         bouts = decode_format(bouts)
         bouts = decode_date(bouts, cname="date", prefix="bout_")
