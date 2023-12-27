@@ -1,6 +1,11 @@
 import pandas as pd
 import numpy as np
 from os.path import isfile
+from sklearn.linear_model import LinearRegression
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import mean_squared_error, r2_score
+
+# suppressing an annoying warning
 pd.options.mode.chained_assignment = None
 
 MONTHS = {"JAN": 1, "FEB": 2, "MAR": 3, "APR": 4, "MAY": 5,
@@ -177,6 +182,32 @@ def get_object_data_report(df):
     qual_rep.loc["unique_pct"] = unique["p"]
     return qual_rep
 
+def linear_imputation(df, target, inputs, k=5):
+    all_cols = inputs.copy()
+    all_cols.append(target)
+    imp_df = df[all_cols].dropna()
+    X = imp_df[inputs].copy()
+    Y = imp_df[target].copy()
+    cv_rmse = []
+    cv_r2 = []
+    for _ in range(k):
+        x_train, x_test, y_train, y_test = train_test_split(X, Y, test_size=0.2)
+        lm = LinearRegression()
+        lm.fit(x_train, y_train)
+        y_pred = lm.predict(x_test)
+        cv_rmse.append(mean_squared_error(y_test, y_pred, squared=False))
+        cv_r2.append(r2_score(y_test, y_pred))
+    rmse = sum(cv_rmse) / float(k)
+    r2 = sum(cv_r2) / float(k)
+    print(f"Linear imputation for {target}")
+    print(f"CV RSME = {rmse:.2f}, CV R^2 = {r2:.2f}")
+    lm = LinearRegression()
+    lm.fit(X, Y)
+    X = df[inputs].copy()
+    na_fill = pd.Series(lm.predict(X), index=df.index, name=target)
+    df[target] = df[target].fillna(na_fill)
+    return df, lm
+
 if __name__ == "__main__":
     # data from: https://www.kaggle.com/datasets/rajeevw/ufcdata
     fighters_fname = "fighters.csv"
@@ -244,6 +275,9 @@ if __name__ == "__main__":
     # bouts_num_rep.to_csv("bouts_numeric_report.csv", index_label="Metric")
     # bouts_obj_rep.to_csv("bouts_object_report.csv", index_label="Metric")
 
+    fighters_pproc_fname = "fighters_preprocessed.csv"
+    bouts_pproc_fname = "bouts_preprocessed.csv"
+
     """
     Imputation and cleanup notes:
     - drop 32 bouts w/ missing refs
@@ -252,13 +286,22 @@ if __name__ == "__main__":
     - analysis for best predictors of reach
     - drop fighters w/ missing birthdays
     """
-    bouts_preprocessed = bouts.copy()
-    bouts_preprocessed = bouts_preprocessed.dropna(subset=["Referee"])
 
-    fighters_preprocessed = fighters.copy()
-    fighters_preprocessed = fighters_preprocessed.dropna(subset=["Height", "Weight", "birth_month",
-                                                                 "birth_day", "birth_year"])
-    corr = fighters_preprocessed.select_dtypes("number").corr()
-    print(corr["Reach"])
-
-    reach_preds = ["Height", "Weight"]
+    if not isfile(bouts_pproc_fname):
+        bouts_preprocessed = bouts.copy()
+        bouts_preprocessed = bouts_preprocessed.dropna(subset=["Referee"])
+        bouts_preprocessed.to_csv(bouts_pproc_fname, index=False)
+    else:
+        bouts_preprocessed = pd.read_csv(bouts_pproc_fname)
+    
+    if not isfile(fighters_pproc_fname):
+        fighters_preprocessed = fighters.copy()
+        fighters_preprocessed = fighters_preprocessed.dropna(subset=["Height", "Weight", "birth_month",
+                                                                    "birth_day", "birth_year"])
+        # corr = fighters_preprocessed.select_dtypes("number").corr()
+        # print(corr["Reach"])
+        fighters_preprocessed, reach_lm = linear_imputation(fighters_preprocessed,
+                                                        "Reach", ["Height", "Weight"])
+        fighters_preprocessed.to_csv(fighters_pproc_fname, index=False)
+    else:
+        fighters_preprocessed = pd.read_csv(fighters_pproc_fname)
