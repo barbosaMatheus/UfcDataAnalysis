@@ -17,6 +17,8 @@ WEIGHT_CLASSES_LBS = {"Strawweight": 115.0, "Flyweight": 125.0, "Bantamweight": 
 WEIGHT_CLASSES_KGS = {"Strawweight": 52.2, "Flyweight": 56.7, "Bantamweight": 61.2,
                        "Featherweight": 65.8, "Lightweight": 70.3, "Welterweight": 77.1,
                        "Middleweight": 83.9, "Light Heavyweight": 93.0, "Heavyweight": 120.2}
+AVG_LAST_ROUND = 2.3402789736524885
+AVG_FIGHT_MINS = 11.7
 
 def show_col_dtypes(df):
     for col in df.columns.values:
@@ -286,8 +288,10 @@ if __name__ == "__main__":
     - analysis for best predictors of reach
     - drop fighters w/ missing birthdays
     """
+    # set to true to force file regen below
+    # FORCE_REGEN = True
 
-    if not isfile(bouts_pproc_fname):
+    if (not isfile(bouts_pproc_fname)):
         bouts_preprocessed = bouts.copy()
         bouts_preprocessed = bouts_preprocessed.dropna(subset=["Referee"])
         bouts_preprocessed.to_csv(bouts_pproc_fname, index=False)
@@ -302,6 +306,17 @@ if __name__ == "__main__":
         # print(corr["Reach"])
         fighters_preprocessed, reach_lm = linear_imputation(fighters_preprocessed,
                                                         "Reach", ["Height", "Weight"])
+        
+        # feature engineering
+        print(fighters_preprocessed.columns.values)
+        fighters_preprocessed["winning_pct"] = fighters_preprocessed["wins"] / fighters_preprocessed["bouts"]
+        fighters_preprocessed["strike_throughput"] = fighters_preprocessed["SApM"] + fighters_preprocessed["SLpM"]
+        fighters_preprocessed["offense_vol"] = (fighters_preprocessed["strike_throughput"] + 
+                                                (fighters_preprocessed["TD_Avg"] / AVG_FIGHT_MINS) +
+                                                (fighters_preprocessed["Sub_Avg"] / AVG_FIGHT_MINS))
+        fighters_preprocessed["brawler_rating"] = (fighters_preprocessed["strike_throughput"] / 
+                                                   (fighters_preprocessed["TD_Avg"]) + 
+                                                   fighters_preprocessed["Sub_Avg"] + 1e-6)
         fighters_preprocessed.to_csv(fighters_pproc_fname, index=False)
     else:
         fighters_preprocessed = pd.read_csv(fighters_pproc_fname)
