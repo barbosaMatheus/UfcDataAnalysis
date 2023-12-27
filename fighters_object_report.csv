@@ -1,0 +1,11 @@
+Metric,fighter_name,Stance
+1-mode,Papy Abedi,Orthodox
+1-mode_freq,0.0004675081813931744,0.7456755493221131
+2-mode,Nissen Osterneck,Southpaw
+2-mode_freq,0.0004675081813931744,0.171575502571295
+antimode,Allan Zuniga,Sideways
+a-mode_freq,0.0004675081813931744,0.001402524544179523
+n_missing,0,0
+missing_pct,0.0,0.0
+n_unique,2139,6
+unique_pct,1.0,0.002805049088359046

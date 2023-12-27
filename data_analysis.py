@@ -114,7 +114,7 @@ def get_fighter_ids(df, fighters):
     return df
 
 def get_numeric_data_report(df):
-    num_df = df.select_dtypes(include="number")
+    num_df = df.select_dtypes("number")
     rows = num_df.shape[0]
     qual_rep = num_df.describe()
     missing = {"n": [], "p": []}
@@ -231,13 +231,34 @@ if __name__ == "__main__":
     else:
         bouts = pd.read_csv(bouts_fname)
 
-    fighters_num_rep = get_numeric_data_report(fighters)
-    fighter_obj_rep = get_object_data_report(fighters)
+    # fighters_num_rep = get_numeric_data_report(fighters)
+    # fighters_obj_rep = get_object_data_report(fighters)
     # print(fighters_num_rep)
-    print(fighter_obj_rep)
-    # fighters_num_rep.to_csv("fighters_numeric_report.csv", index=False)
-    bouts_num_rep = get_numeric_data_report(bouts)
-    bouts_obj_rep = get_object_data_report(bouts)
+    # print(fighters_obj_rep)
+    # fighters_num_rep.to_csv("fighters_numeric_report.csv", index_label="Metric")
+    # fighters_obj_rep.to_csv("fighters_object_report.csv", index_label="Metric")
+    # bouts_num_rep = get_numeric_data_report(bouts)
+    # bouts_obj_rep = get_object_data_report(bouts)
     # print(bouts_num_rep)
-    print(bouts_obj_rep)
-    # bouts_num_rep.to_csv("bouts_nuemric_report.csv", index=False)
+    # print(bouts_obj_rep)
+    # bouts_num_rep.to_csv("bouts_numeric_report.csv", index_label="Metric")
+    # bouts_obj_rep.to_csv("bouts_object_report.csv", index_label="Metric")
+
+    """
+    Imputation and cleanup notes:
+    - drop 32 bouts w/ missing refs
+    - drop fighers w/ missing height
+    - drop fighters w/ missing weight
+    - analysis for best predictors of reach
+    - drop fighters w/ missing birthdays
+    """
+    bouts_preprocessed = bouts.copy()
+    bouts_preprocessed = bouts_preprocessed.dropna(subset=["Referee"])
+
+    fighters_preprocessed = fighters.copy()
+    fighters_preprocessed = fighters_preprocessed.dropna(subset=["Height", "Weight", "birth_month",
+                                                                 "birth_day", "birth_year"])
+    corr = fighters_preprocessed.select_dtypes("number").corr()
+    print(corr["Reach"])
+
+    reach_preds = ["Height", "Weight"]
