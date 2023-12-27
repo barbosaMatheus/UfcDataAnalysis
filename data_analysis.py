@@ -53,13 +53,12 @@ def decode_location(df, cname="location"):
     return df.drop([cname], axis=1)
 
 def decode_winner(df):
-    print(df["win_by"].unique())
-    df["Draw/NC"] = ((df["Winner"] != df["R_fighter"]) & 
+    df["none"] = ((df["Winner"] != df["R_fighter"]) & 
                         (df["Winner"] != df["B_fighter"]))
-    df["R"] = df["Winner"] == df["R_fighter"]
-    df["B"] = df["Winner"] == df["B_fighter"]
-    df["winner"] = df[["Draw/NC","R","B"]].idxmax(1)
-    return df.drop(["R","B","Draw/NC","Winner"], axis=1)
+    df["red"] = df["Winner"] == df["R_fighter"]
+    df["blue"] = df["Winner"] == df["B_fighter"]
+    df["winner"] = df[["none","red","blue"]].idxmax(1)
+    return df.drop(["red","blue","none","Winner"], axis=1)
 
 def decode_weight_class(df, cname="Fight_type"):
     df[cname] = df[cname].str.replace("UFC ", "")
@@ -97,17 +96,25 @@ def get_fids_and_ages(bouts, fighters):
     return bouts.rename(columns={"R_fighter": "red_fid", "B_fighter": "blue_fid"})
 
 def calculate_records(df, bouts, cname="fighter_name"):
-    df["wins"] = df.apply(lambda x: bouts[bouts["Winner"] == x[cname]].shape[0], axis=1)
-    df["losses"] = df.apply(lambda x: bouts[bouts["Winner"] == x[cname]].shape[0], axis=1)
-    df["draw/nc"] = df.apply(lambda x: bouts[((bouts["R_fighter"] == x[cname]) |
-                                             (bouts["B_fighter"] == x[cname])) &
-                                             (bouts["Winner"] != x[cname])].shape[0], axis=1)
     df["bouts"] = df.apply(lambda x: bouts[(bouts["R_fighter"] == x[cname]) |
                                            (bouts["B_fighter"] == x[cname])].shape[0], axis=1)
+    df["wins"] = df.apply(lambda x: bouts[bouts["Winner"] == x[cname]].shape[0], axis=1)
+    df["losses"] = df.apply(lambda x: bouts[((bouts["R_fighter"] == x[cname]) &
+                                             (bouts["Winner"] == bouts["B_fighter"])) |
+                                             ((bouts["B_fighter"] == x[cname]) &
+                                             (bouts["Winner"] == bouts["R_fighter"]))].shape[0], 
+                                             axis=1)
+    df["draw_nc"] = df["bouts"] - (df["wins"] + df["losses"])
+    return df
+
+def get_fighter_ids(df, fighters):
+    f = fighters.copy()
+    df["red_fid"] = df["R_fighter"].map(f.set_index("fighter_name")["fighter_id"])
+    df["blue_fid"] = df["B_fighter"].map(f.set_index("fighter_name")["fighter_id"])
     return df
 
 if __name__ == "__main__":
-    # data from: https://www.kaggle.com/datasets/rajeevw/ufcdata?select=preprocessed_data.csv
+    # data from: https://www.kaggle.com/datasets/rajeevw/ufcdata
     fighters_fname = "fighters.csv"
     bouts_fname = "bouts.csv"
     if not isfile(fighters_fname):
@@ -139,22 +146,24 @@ if __name__ == "__main__":
                      "location", "Fight_type", "Winner", "win_by", "last_round"]
 
         bouts = bouts[keep_cols]
-        if not set(["wins", "losses", "draw/nc", "bouts"]).issubset(set(fighters.columns)):
+        if not set(["wins", "losses", "draw_nc", "bouts"]).issubset(set(fighters.columns)):
             fighters = calculate_records(fighters, bouts)
             # remove fighters with 0 bouts
             fighters = fighters[fighters["bouts"] > 0]
-            # fighters.to_csv(fighters_fname, axis=False)
-        print(fighters)
+            fighters.to_csv(fighters_fname, index=False)
         bouts = decode_format(bouts)
         bouts = decode_date(bouts, cname="date", prefix="bout_")
         bouts = decode_location(bouts)
-        bouts["title_bout"] = bouts["Fight_type"].str.contains("Title").astype(np.float32)
+        bouts["is_title_bout"] = bouts["Fight_type"].str.contains("Title").astype(np.float32)
         bouts = decode_winner(bouts)
         bouts = decode_weight_class(bouts)
-    #     cols = ['gender', 'red_fid', 'weight_class', 'rounds', 'blue_fid', 'Referee',
-    #             'bout_month', 'bout_day', 'bout_year', 'city', 'country', 'title_bout',
-    #             'winner', 'win_by', 'last_round']
-    #     bouts = bouts[cols]
-    #     bouts.to_csv(bouts_fname)
-    # else:
-    #     bouts = pd.read_csv(bouts_fname)
+        bouts = get_fighter_ids(bouts, fighters)
+        bouts = bouts.rename(columns={"R_fighter": "r_fighter", "B_fighter": "b_fighter"})
+        cols = ["gender", "weight_class", "red_fid", "r_fighter", "blue_fid", "b_fighter", 
+                "rounds", "Referee", "bout_month", "bout_day", "bout_year", "city", 
+                "country", "is_title_bout", "winner", "win_by", "last_round"]
+        bouts = bouts[cols]
+        print(bouts)
+        bouts.to_csv(bouts_fname, index=False)
+    else:
+        bouts = pd.read_csv(bouts_fname)
