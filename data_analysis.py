@@ -113,6 +113,70 @@ def get_fighter_ids(df, fighters):
     df["blue_fid"] = df["B_fighter"].map(f.set_index("fighter_name")["fighter_id"])
     return df
 
+def get_numeric_data_report(df):
+    num_df = df.select_dtypes(include="number")
+    rows = num_df.shape[0]
+    qual_rep = num_df.describe()
+    missing = {"n": [], "p": []}
+    unique = {"n": [], "p": []}
+    for col in num_df.columns.values:
+        n_miss = num_df[col].isna().sum()
+        p_miss = float(n_miss) / rows
+        missing["n"].append(n_miss)
+        missing["p"].append(p_miss)
+        n_unique = num_df[col].nunique()
+        p_unique = float(n_unique) / rows
+        unique["n"].append(n_unique)
+        unique["p"].append(p_unique)
+    qual_rep.loc["n_missing"] = missing["n"]
+    qual_rep.loc["missing_pct"] = missing["p"]
+    qual_rep.loc["n_unique"] = unique["n"]
+    qual_rep.loc["unique_pct"] = unique["p"]
+    return qual_rep
+
+def get_object_data_report(df):
+    obj_df = df.select_dtypes("object")
+    qual_rep = pd.DataFrame(columns=obj_df.columns.values)
+    rows = obj_df.shape[0]
+    modes1 = {"v": [], "f": []}
+    modes2 = {"v": [], "f": []}
+    missing = {"n": [], "p": []}
+    unique = {"n": [], "p": []}
+    antimodes = {"v": [], "f": []}
+    for col in obj_df.columns.values:
+        counts = obj_df[col].value_counts()
+        mode1 = counts.index[0]
+        mode2 = counts.index[1]
+        antimode = counts.index[-1]
+        m1_freq = float(counts.iloc[0]) / rows
+        m2_freq = float(counts.iloc[1]) / rows
+        am_freq = float(counts.iloc[-1]) / rows
+        modes1["v"].append(mode1)
+        modes1["f"].append(m1_freq)
+        modes2["v"].append(mode2)
+        modes2["f"].append(m2_freq)
+        antimodes["v"].append(antimode)
+        antimodes["f"].append(am_freq)
+        n_miss = obj_df[col].isna().sum()
+        p_miss = float(n_miss) / rows
+        missing["n"].append(n_miss)
+        missing["p"].append(p_miss)
+        n_unique = obj_df[col].nunique()
+        p_unique = float(n_unique) / rows
+        unique["n"].append(n_unique)
+        unique["p"].append(p_unique)
+    qual_rep.loc["1-mode"] = modes1["v"]
+    qual_rep.loc["1-mode_freq"] = modes1["f"]
+    qual_rep.loc["2-mode"] = modes2["v"]
+    qual_rep.loc["2-mode_freq"] = modes2["f"]
+    qual_rep.loc["antimode"] = antimodes["v"]
+    qual_rep.loc["a-mode_freq"] = antimodes["f"]
+    qual_rep.loc["n_missing"] = missing["n"]
+    qual_rep.loc["missing_pct"] = missing["p"]
+    qual_rep.loc["n_unique"] = unique["n"]
+    qual_rep.loc["unique_pct"] = unique["p"]
+    return qual_rep
+
 if __name__ == "__main__":
     # data from: https://www.kaggle.com/datasets/rajeevw/ufcdata
     fighters_fname = "fighters.csv"
@@ -163,7 +227,17 @@ if __name__ == "__main__":
                 "rounds", "Referee", "bout_month", "bout_day", "bout_year", "city", 
                 "country", "is_title_bout", "winner", "win_by", "last_round"]
         bouts = bouts[cols]
-        print(bouts)
         bouts.to_csv(bouts_fname, index=False)
     else:
         bouts = pd.read_csv(bouts_fname)
+
+    fighters_num_rep = get_numeric_data_report(fighters)
+    fighter_obj_rep = get_object_data_report(fighters)
+    # print(fighters_num_rep)
+    print(fighter_obj_rep)
+    # fighters_num_rep.to_csv("fighters_numeric_report.csv", index=False)
+    bouts_num_rep = get_numeric_data_report(bouts)
+    bouts_obj_rep = get_object_data_report(bouts)
+    # print(bouts_num_rep)
+    print(bouts_obj_rep)
+    # bouts_num_rep.to_csv("bouts_nuemric_report.csv", index=False)
